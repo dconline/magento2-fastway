@@ -1,4 +1,4 @@
-该项目是Magento2的Fastway物流插件,通过调用Fastway的API,计算运费并呈现在Magento2网站中，该插件目前适用于南非.
+该项目是Magento2的Fastway物流插件,通过调用Fastway的API,计算运费并呈现在Magento2网站中，该插件目前适用于南非.
 
 ## 功能
 1. 计算运费
@@ -11,7 +11,7 @@
     - https://github.com/magento/magento2
 
 ## 安装
-1. 获取访问Fastway的API_key,浏览器打开网址：http://www.fastway.co.za/our-services/api, 填入基本信息并提交,留意邮箱内是否收到Fastway发送的邮件，邮件内会包含API_Key.
+1. 获取访问Fastway的key,浏览器打开网址：http://sa.api.fastway.org/v3/docs/page/GetAPIKey.html, 填入基本信息并提交,留意邮箱内是否收到Fastway发送的邮件，邮件内会包含Key.
 
 2. 使用Composer(推荐)
     - composer require dconline/module-fastway
@@ -24,7 +24,7 @@
 
 ## 配置
 1. 登录Magento2网站后台,进入到运输插件配置的菜单:Stores——>Settings——>Configuration——>Sales——>Shipping Methods.
-2. 选择Fastway,把第一步获取的API_Key填入到输入框中.
+2. 选择Fastway,把第一步获取的Key填入到输入框中.
 3. 国家选择南非，其它选项和输入项默认即可.
 4. 刷新网站索引:
     - php -f bin/magento cache:flush
