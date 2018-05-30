@@ -33,6 +33,10 @@
                     <source_model>Magento\Directory\Model\Config\Source\Country</source_model>
                     <can_be_empty>1</can_be_empty>
                 </field>
+                <field id="delivery_area" translate="label" type="select" sortOrder="50" showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>Delivery area</label>
+                    <source_model>Dc\Fastway\Model\Config\DeliveryArea</source_model>
+                </field>
                 <!-- showmethod 开启即可显示错误提示 -->
                 <field id="showmethod" translate="label" type="select" sortOrder="170" showInDefault="1" showInWebsite="1" showInStore="0">
                     <label>Show Method if Not Applicable</label>

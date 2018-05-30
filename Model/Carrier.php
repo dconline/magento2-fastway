@@ -1,16 +1,33 @@
 <?php
-namespace DCOnline\Fastway\Model;
+namespace Dc\Fastway\Model;
 
 use Magento\Framework\Xml\Security;
 use Magento\Quote\Model\Quote\Address\RateRequest;
 use Magento\Shipping\Model\Carrier\AbstractCarrierOnline;
 use Magento\Shipping\Model\Carrier\CarrierInterface;
 use Magento\Shipping\Model\Rate\Result;
-use Magento\Ups\Helper\Config;
 
 class Carrier extends AbstractCarrierOnline implements CarrierInterface
 {
+    /**
+     * 识别code，当前是fastway
+     */
     const CODE = 'fastway';
+
+    /**
+     * 国家代码
+     */
+    const COUNTRYCODE = 24;
+
+    /**
+     * 查询快递跟踪信息url
+     */
+    const TRACKINGEVENTS = '/tracktrace/detail/';
+
+    /**
+     * 查询快递费用url
+     */
+    const PSCLOOKUP = '/psc/lookup/';
 
     /**
      * @var string
@@ -18,24 +35,47 @@ class Carrier extends AbstractCarrierOnline implements CarrierInterface
     protected $_code = self::CODE;
 
     /**
-     * @var RateRequest $_request
+     * @var int
+     */
+    protected $country_code = self::COUNTRYCODE;
+
+    /**
+     * @var string
+     */
+    protected $tracking_events = self::TRACKINGEVENTS;
+
+    /**
+     * @var string
+     */
+    protected $psc_lookup = self::PSCLOOKUP;
+
+    /**
+     * Rate request data
+     *
+     * @var Magento\Quote\Model\Quote\Address\RateRequest
      */
     protected $_request;
 
     /**
-     * @var Result $_result
+     * Rate result data
+     *
+     * @var Magento\Shipping\Model\Rate\Result
      */
     protected $_result;
 
     /**
-     * @var \DCOnline\Fastway\Api\ValidatorInterface $validator
+     * http请求
+     *
+     * @var \Magento\Framework\HTTP\ZendClientFactory
      */
-    protected $validator;
+    protected $_httpClientFactory;
 
     /**
-     * @var \Magento\Framework\HTTP\ZendClientFactory $httpClientFactory
+     * 验证接口
+     *
+     * @var \Dc\Fastway\Api\ValidatorInterface
      */
-    protected $httpClientFactory;
+    protected $validator;
 
     public function __construct(
         \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig,
@@ -53,11 +93,11 @@ class Carrier extends AbstractCarrierOnline implements CarrierInterface
         \Magento\Directory\Model\CurrencyFactory $currencyFactory,
         \Magento\Directory\Helper\Data $directoryData,
         \Magento\CatalogInventory\Api\StockRegistryInterface $stockRegistry,
-        \Magento\Framework\HTTP\ZendClientFactory $httpClientFactory,
-        \DCOnline\Fastway\Api\ValidatorInterface $validator,
+        \Magento\Framework\HTTP\ZendClientFactory $_httpClientFactory,
+        \Dc\Fastway\Api\ValidatorInterface $validator,
         array $data = []
     ) {
-        $this->httpClientFactory = $httpClientFactory;
+        $this->_httpClientFactory = $_httpClientFactory;
         $this->validator = $validator;
         parent::__construct(
             $scopeConfig,
@@ -81,6 +121,7 @@ class Carrier extends AbstractCarrierOnline implements CarrierInterface
 
     /**
      * Do shipment request to carrier web service, obtain Print Shipping Labels and process errors in response
+     *
      * @param \Magento\Framework\DataObject $request
      * @return \Magento\Framework\DataObject
      */
@@ -93,7 +134,8 @@ class Carrier extends AbstractCarrierOnline implements CarrierInterface
     }
 
     /**
-     * 获取支持的方式
+     * 获取支持的运输方式
+     *
      * @return array
      */
     public function getAllowedMethods()
@@ -102,72 +144,123 @@ class Carrier extends AbstractCarrierOnline implements CarrierInterface
     }
 
     /**
-     * 页面调用查询快递记录
+     * 查询快递跟踪信息
+     *
+     * @param string $trackings
      * @return Result|null
      */
     public function getTracking($trackings)
     {
-        $tracksumary = $this->getXMLTracking($trackings);
-        $result = $this->_trackFactory->create();
-        $tracking = $this->_trackStatusFactory->create();
-        $tracking->setCarrier($this->_code);
-        $tracking->setCarrierTitle($this->getConfigData('title'));
-        $tracking->setTracking($trackings);
-        $tracking->setTrackSummary($tracksumary);
-        $result->append($tracking);
-        return $result;
+        // 先判断单号规则
+        if (!$this->validator->isValid($trackings)) {
+            $this->showShipmentError($trackings);
+        } else {
+            // 请求api查询快递跟踪信息
+            $this->_getTrackSumary($trackings);
+        }
+        return $this->_result;
     }
 
     /**
-     * 获取物流信息
+     * 根据快递单号获取跟踪信息
+     *
      * @param string $trackings
-     * @return string
+     * @return string|null
      */
-    public function getXMLTracking($trackings)
+    protected function _getTrackSumary($trackings)
     {
-        // 先判断单号规则
-        if (!$this->validator->isValid($trackings)) {
-            return __('Invalid track number is %1 ', $trackings);
-        }
-        // 从缓存拿
-        $response = $this->_getCachedQuotes($trackings);
-        if ($response === null) {
+        // 请求api查快递信息
+        $gateway_url = $this->getConfigData('gateway_url');
+        $api_key = $this->getConfigData('apikey');
+        $url = $gateway_url . $this->tracking_events . rawurlencode($trackings) . '/' . $this->country_code . '.xml?api_key=' . $api_key;
+        $responseBody = $this->_getCachedQuotes($url);
+        if ($responseBody === null) {
             try {
-                // 请求api查快递信息
-                $base_url = $this->getConfigData('gateway_url');
-                $api_key = $this->getConfigData('apikey');
-                $url = $base_url . '/tracktrace/detail/' . rawurlencode($trackings) . '/24.xml?api_key=' . $api_key;
-                $client = $this->httpClientFactory->create();
+                $client = $this->_httpClientFactory->create();
                 $client->setUri($url);
                 $client->setConfig(['maxredirects' => 0, 'timeout' => 30]);
-                $response = $client->request()->getBody();
-                $this->_setCachedQuotes($trackings, $response);
+                $responseBody = $client->request()->getBody();
+                $this->_setCachedQuotes($url, $responseBody);
             } catch (\Exception $e) {
-                $response = '';
+                $responseBody = '';
             }
         }
-        // 处理物流信息结果
-        if (strlen(trim($response)) > 0) {
-            $xml = $this->parseXml($response, 'Magento\Shipping\Model\Simplexml\Element');
+        return $this->_parseXmlTrackingResponse($trackings, $responseBody);
+    }
+
+    /**
+     * 解析查询结果
+     *
+     * @param string $trackings
+     * @param object $responseBody
+     */
+    protected function _parseXmlTrackingResponse($trackings, $responseBody)
+    {
+        $resultArray = [];
+        if (strlen(trim($responseBody)) > 0) {
+            $xml = $this->parseXml($responseBody, 'Magento\Shipping\Model\Simplexml\Element');
+            // 错误信息
             if (is_object($xml)) {
-                // api结果没有返回错误
                 if (strlen($xml->error) <= 0) {
-                    $result = '';
+                    $packageProgress = [];
+                    // 生存快递跟踪信息
                     foreach ($xml->result->Scans->array->item as $item) {
-                        $result = $item->StatusDescription;
+                        $description = $item->StatusDescription;
+                        $location = $item->Name;
+                        // 获取时间，需要解析
+                        $datetime = \DateTime::createFromFormat('d/m/Y H:i:s', $item->Date);
+                        $deliverydate = $datetime->format('Y-m-d');
+                        $deliverytime = $datetime->format('h:i:s');
+                        $shipmentEventArray = [];
+                        $shipmentEventArray['activity'] = $description;
+                        $shipmentEventArray['deliverydate'] = (string)$deliverydate;
+                        $shipmentEventArray['deliverytime'] = (string)$deliverytime;
+                        $shipmentEventArray['deliverylocation'] = $location;
+                        $packageProgress[] = $shipmentEventArray;
                     }
-                    // 查询到有物流信息
-                    return $result;
+                    asort($packageProgress);
+                    $progressData['progressdetail'] = $packageProgress;
+                    $resultArray[$trackings] = $progressData;
                 }
             }
         }
-        // 没有物流信息
-        $result = __('%1 - tracking number does not have any information.', $trackings);
-        return $result;
+        // 处理结果
+        if (!empty($resultArray)) {
+            $result = $this->_trackFactory->create();
+            foreach ($resultArray as $trackings => $data) {
+                $tracking = $this->_trackStatusFactory->create();
+                $tracking->setCarrier($this->_code);
+                $tracking->setCarrierTitle($this->getConfigData('title'));
+                $tracking->setTracking($trackings);
+                $tracking->addData($data);
+                $result->append($tracking);
+            }
+            $this->_result = $result;
+        } else {
+            $this->showShipmentError($trackings);
+        }
+    }
+
+    /**
+     * 处理错误信息
+     *
+     * @param string $trackings
+     */
+    protected function showShipmentError($trackings)
+    {
+        $result = $this->_trackFactory->create();
+        $error = $this->_trackErrorFactory->create();
+        $error->setCarrier($this->_code);
+        $error->setCarrierTitle($this->getConfigData('title'));
+        $error->setTracking($trackings);
+        $error->setErrorMessage($this->getConfigData('specificerrmsg'));
+        $result->append($error);
+        $this->_result = $result;
     }
 
     /**
      * 是否可用
+     *
      * @return bool
      */
     public function canCollectRates()
@@ -177,6 +270,7 @@ class Carrier extends AbstractCarrierOnline implements CarrierInterface
 
     /**
      * 获取运费
+     *
      * @param Magento\Quote\Model\Quote\Address\RateRequest $request
      * @return \Magento\Shipping\Model\Rate\ResultFactory
      */
@@ -186,29 +280,31 @@ class Carrier extends AbstractCarrierOnline implements CarrierInterface
             return $this->getErrorMessage();
         }
         $this->setRequest($request);
-        $city = $this->getCity();
-        $postcode = $this->getPostcode();
-        $weight = $this->getWeight();
+        $city = $this->_getCity();
+        $postcode = $this->_getPostcode();
+        $weight = $this->_getWeight();
         $params = [
             'city' => $city,
             'postcode' => $postcode,
             'weight' => $weight,
         ];
+        // 先从缓存拿数据
         $responseBody = $this->_getCachedQuotes($params);
         if ($responseBody === null) {
             try {
-                $responseBody = $this->getQuotesFromServer($params);
+                $responseBody = $this->_getQuotesFromServer($params);
                 $this->_setCachedQuotes($params, $responseBody);
             } catch (\Exception $e) {
                 $responseBody = '';
             }
         }
-        return $this->parseXmlResponse($responseBody);
+        return $this->_parseXmlResponse($responseBody);
     }
 
     /**
      * 获取默认数据
      * NOTE: 目前没有使用官方地址为发货地址，这个方法暂时没用
+     *
      * @param string|int $origValue
      * @param string $pathToValue
      * @return string|int|null
@@ -228,70 +324,112 @@ class Carrier extends AbstractCarrierOnline implements CarrierInterface
 
     /**
      * 调用fastway接口查询费用
+     *
      * @param array $params
      * @return string|null
      */
-    protected function getQuotesFromServer($params)
+    protected function _getQuotesFromServer($params)
     {
         $city = $params['city'];
         $postcode = $params['postcode'];
         $weight = $params['weight'];
         if (strlen($city) > 0 && strlen($postcode) > 0 && $weight > 0) {
-            $client = $this->httpClientFactory->create();
-            $base_url = $this->getConfigData('gateway_url');
+            $client = $this->_httpClientFactory->create();
+            $gateway_url = $this->getConfigData('gateway_url');
             $api_key = $this->getConfigData('apikey');
-            // TODO: JNB使用配置设置
-            $url = $base_url . '/psc/lookup/JNB/' . rawurlencode($city) . '/' . $postcode . '/1.xml?api_key=' . $api_key;
+            $delivery_area = $this->getConfigData('delivery_area');
+            // 地址、国家代码等使用配置设置
+            $url = $gateway_url . $this->psc_lookup . $delivery_area . '/' . rawurlencode($city) . '/' . $postcode . '/1.xml?api_key=' . $api_key;
             $client->setUri($url);
             $client->setConfig(['maxredirects' => 0, 'timeout' => 30]);
-            return $client->request()->getBody();
-        } else {
-            return "";
+            // 状态码判断，为200才是正确的返回结果
+            $status = $client->request()->getStatus();
+            if ($status === 200) {
+                return $client->request()->getBody();
+            }
         }
+        return "";
+    }
+
+    /**
+     * 购物车里的重量
+     *
+     * @return int
+     */
+    protected function _getWeight()
+    {
+        return ceil($this->_request->getPackageWeight());
+    }
+
+    /**
+     * 收货地址城市
+     *
+     * @return string|null
+     */
+    protected function _getCity()
+    {
+        // 使用trim()函数去除前后空格
+        return trim($this->_request->getDestCity());
+    }
+
+    /**
+     * 收货地址邮编
+     *
+     * @return string|null
+     */
+    protected function _getPostcode()
+    {
+        return $this->_request->getDestPostcode();
     }
 
     /**
      * 解析返回结果xml
+     *
      * @param $response
      * @return \Magento\Shipping\Model\Rate\ResultFactory
      */
-    protected function parseXmlResponse($response)
+    protected function _parseXmlResponse($response)
     {
-        $weight = $this->getWeight();
-        $base = ceil($weight / 30);
-        $priceArr = [];
-        if (strlen(trim($response)) > 0) {
-            $xml = $this->parseXml($response, 'Magento\Shipping\Model\Simplexml\Element');
-            if (is_object($xml)) {
-                if (strlen($xml->error) == 0) {
-                    $pri = 0;
-                    foreach ($xml->result->services->array->item as $item) {
-                        $temp = $item->totalprice_frequent;
-                        if ($temp > $pri) {
-                            $pri = $temp;
-                            $priceArr[(string) $xml->result->delivery_timeframe_days . __('days')] = $this->getMethodPrice(
-                                (float) ($base * (float) $item->totalprice_frequent),
-                                (string) $xml->result->delivery_timeframe_days . __('days')
-                            );
+        $weight = $this->_getWeight();
+        // fastway30kg内是同一价格
+        $base_weight = ceil($weight / 30);
+        $priceArray = [];
+        // try catch 有错误时直接返回错误
+        try {
+            if (strlen(trim($response)) > 0) {
+                $xml = $this->parseXml($response, 'Magento\Shipping\Model\Simplexml\Element');
+                if (is_object($xml)) {
+                    if (strlen($xml->error) == 0) {
+                        $price = 0;
+                        foreach ($xml->result->services->array->item as $item) {
+                            $temp = $item->totalprice_frequent;
+                            if ($temp > $price) {
+                                $price = $temp;
+                                $priceArray[(string) $xml->result->delivery_timeframe_days . 'days'] = $this->getMethodPrice(
+                                    // 重量基数乘价格
+                                    (float) ($base_weight * (float) $item->totalprice_frequent),
+                                    (string) $xml->result->delivery_timeframe_days . 'days'
+                                );
+                            }
                         }
                     }
-                    asort($priceArr);
-                } else {
                 }
-            } else {
             }
-        } else {
+        } catch (\Exception $e) {
+            $priceArray = [];
         }
-        // 增加错误提示,需要开启showmethod
+        // 处理查询结果
         $result = $this->_rateFactory->create();
-        if (empty($priceArr)) {
+        if (empty($priceArray)) {
             $error = $this->_rateErrorFactory->create();
             $error->setCarrier($this->_code);
             $error->setCarrierTitle($this->getConfigData('title'));
             $error->setErrorMessage($this->getConfigData('specificerrmsg'));
             $result->append($error);
         } else {
-            foreach ($priceArr as $method => $price) {
+            // 倒序，最后的结果排在前面
+            asort($priceArray);
+            foreach ($priceArray as $method => $price) {
                 $rate = $this->_rateMethodFactory->create();
                 $rate->setCarrier($this->_code);
                 $rate->setCarrierTitle($this->getConfigData('title'));
@@ -306,16 +444,8 @@ class Carrier extends AbstractCarrierOnline implements CarrierInterface
     }
 
     /**
-     * Returns request result
-     * @return Result|null
-     */
-    public function getResult()
-    {
-        return $this->_result;
-    }
-
-    /**
      * 设置当前请求线程
+     *
      * @param RateRequest $request
      * @return $this
      */
@@ -326,39 +456,13 @@ class Carrier extends AbstractCarrierOnline implements CarrierInterface
     }
 
     /**
-     * not delete
+     * 处理过程
+     *
      * @param \Magento\Framework\DataObject $request
-     * @return bool
+     * @return $this
      */
     public function proccessAdditionalValidation(\Magento\Framework\DataObject $request)
     {
-        return true;
-    }
-
-    /**
-     * 购物车里的重量
-     * @return int
-     */
-    protected function getWeight()
-    {
-        return ceil($this->_request->getPackageWeight());
-    }
-
-    /**
-     * 收货地址城市
-     * @return string|null
-     */
-    protected function getCity()
-    {
-        return $this->_request->getDestCity();
-    }
-
-    /**
-     * 收货地址邮编
-     * @return string|null
-     */
-    protected function getPostcode()
-    {
-        return $this->_request->getDestPostcode();
+        return $this;
     }
 }

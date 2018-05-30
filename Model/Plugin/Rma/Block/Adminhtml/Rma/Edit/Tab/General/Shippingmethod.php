@@ -1,6 +1,5 @@
 <?php
-
-namespace DCOnline\Fastway\Model\Plugin\Rma\Block\Adminhtml\Rma\Edit\Tab\General;
+namespace Dc\Fastway\Model\Plugin\Rma\Block\Adminhtml\Rma\Edit\Tab\General;
 
 class Shippingmethod
 {
@@ -28,6 +27,6 @@ class Shippingmethod
         if (!$carrierCode) {
             return (bool)$result || false;
         }
-        return (bool)$result || (bool)$carrierCode == \DCOnline\Fastway\Model\Carrier::CODE;
+        return (bool)$result || (bool)$carrierCode == \Dc\Fastway\Model\Carrier::CODE;
     }
 }
