@@ -2,7 +2,7 @@
 <config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
     <type name="Magento\Rma\Block\Adminhtml\Rma\Edit\Tab\General\Shippingmethod">
     <plugin name="rma_tab_shippingmethod_fastway"
-            type="DCOnline\Fastway\Model\Plugin\Rma\Block\Adminhtml\Rma\Edit\Tab\General\Shippingmethod"/>
+            type="Dc\Fastway\Model\Plugin\Rma\Block\Adminhtml\Rma\Edit\Tab\General\Shippingmethod"/>
     </type>
     <!-- 导出的时候忽略属性 -->
     <type name="Magento\Config\Model\Config\Export\ExcludeList">
@@ -14,5 +14,5 @@
     </type>
 
     <!-- 前后端都会用: 验证规则 -->
-    <preference for="DCOnline\Fastway\Api\ValidatorInterface" type="DCOnline\Fastway\Model\Validator"/>
+    <preference for="Dc\Fastway\Api\ValidatorInterface" type="Dc\Fastway\Model\Validator"/>
 </config>

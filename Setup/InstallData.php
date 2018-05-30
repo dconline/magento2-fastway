@@ -1,19 +1,19 @@
 <?php
-namespace DCOnline\Fastway\Setup;
+namespace Dc\Fastway\Setup;
 
-use Magento\Framework\Setup\UpgradeDataInterface;
+use Magento\Framework\Setup\InstallDataInterface;
 use Magento\Framework\Setup\ModuleContextInterface;
 use Magento\Framework\Setup\ModuleDataSetupInterface;
-use Magento\Payment\Model\Method\AbstractMethod;
 
-class UpgradeData implements UpgradeDataInterface
+class InstallData implements InstallDataInterface
 {
     /**
-     * {@inheritdoc}
-     * @SuppressWarnings(PHPMD.NPathComplexity)
-     * @SuppressWarnings(PHPMD.CyclomaticComplexity)
+     * 安装南非城市数据
+     *
+     * @param ModuleDataSetupInterface $setup
+     * @param ModuleContextInterface $context
      */
-    public function upgrade(ModuleDataSetupInterface $setup, ModuleContextInterface $context)
+    public function install(ModuleDataSetupInterface $setup, ModuleContextInterface $context)
     {
         $setup->startSetup();
 
@@ -29,6 +29,7 @@ class UpgradeData implements UpgradeDataInterface
             ['ZA', 'North West', 'North West'],
             ['ZA', 'Western Cape', 'Western Cape']
         ];
+        // 循环插入 directory_country_region、directory_country_region_name
         foreach ($data as $row) {
             $bind = ['country_id' => $row[0], 'code' => $row[1], 'default_name' => $row[2]];
             $setup->getConnection()->insert($setup->getTable('directory_country_region'), $bind);
@@ -37,8 +38,7 @@ class UpgradeData implements UpgradeDataInterface
             $bind = ['locale' => 'en_US', 'region_id' => $regionId, 'name' => $row[2]];
             $setup->getConnection()->insert($setup->getTable('directory_country_region_name'), $bind);
         }
-        // citys of province ?
-
+        
         $setup->endSetup();
     }
 }

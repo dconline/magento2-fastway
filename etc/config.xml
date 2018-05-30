@@ -7,13 +7,15 @@
                 <allowed_methods>delivery</allowed_methods>
                 <methods>delivery</methods>
                 <sallowspecific>0</sallowspecific>
-                <model>DCOnline\Fastway\Model\Carrier</model>
+                <model>Dc\Fastway\Model\Carrier</model>
                 <name>Fastway</name>
                 <title>Fastway</title>
                 <apikey />
+                <delivery_area>JNB</delivery_area>
                 <gateway_url>http://sa.api.fastway.org/v3</gateway_url>
                 <gateway_secure_url>https://sa.api.fastway.org/v3</gateway_secure_url>
                 <sallowspecific>1</sallowspecific>
+                <!-- 目前支持南非 -->
                 <specificcountry>ZA</specificcountry>
                 <!-- 显示开启 -->
                 <showmethod>1</showmethod>

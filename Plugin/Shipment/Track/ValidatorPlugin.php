@@ -1,26 +1,27 @@
 <?php
-namespace DCOnline\Fastway\Plugin\Shipment\Track;
+namespace Dc\Fastway\Plugin\Shipment\Track;
 
-use DCOnline\Fastway\Model\Carrier;
+use Dc\Fastway\Model\Carrier;
 
 class ValidatorPlugin
 {
     /**
-     * @var \DCOnline\Fastway\Api\ValidatorInterface
+     * @var \Dc\Fastway\Api\ValidatorInterface
      */
     protected $validator;
 
     /**
-     * @param \DCOnline\Fastway\Api\ValidatorInterface $validator
+     * @param \Dc\Fastway\Api\ValidatorInterface $validator
      */
     public function __construct(
-        \DCOnline\Fastway\Api\ValidatorInterface $validator
+        \Dc\Fastway\Api\ValidatorInterface $validator
     ) {
         $this->validator = $validator;
     }
 
     /**
      * 增加验证单号格式方法
+     *
      * @param \Magento\Sales\Model\Order\Shipment\Track\Validator $subject
      * @param \Closure $proceed
      * @param \Magento\Sales\Model\Order\Shipment\Track $track
