@@ -17,7 +17,7 @@
     - composer require dconline/module-fastway
 
 3. 启用插件
-    - php -f bin/magento module:enable --clear-static-content DCOnline_Fastway
+    - php -f bin/magento module:enable --clear-static-content Dc_Fastway
     - php -f bin/magento setup:upgrade
     - php -f bin/magento setup:static-content:deploy
     - php -f bin/magento cache:flush
@@ -26,6 +26,7 @@
 1. 登录Magento2网站后台,进入到运输插件配置的菜单:Stores——>Settings——>Configuration——>Sales——>Shipping Methods.
 2. 选择Fastway,把第一步获取的Key填入到输入框中.
 3. 国家选择南非，其它选项和输入项默认即可.
+4. 发货地根据实际地区选择
 4. 刷新网站索引:
     - php -f bin/magento cache:flush
 
